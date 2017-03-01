@@ -1,0 +1,96 @@
+version: '2'
+
+services:
+  rabbitmq:
+    restart: always
+    container_name: rabbitmq
+    image: rabbitmq:3.6.2-management
+    environment:
+      - RABBITMQ_DEFAULT_USER=muon
+      - RABBITMQ_DEFAULT_PASS=microservices
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    expose:
+      - "5672"
+      - "15672"
+    networks:
+        - default
+        - muon
+  photon:
+    image: simplicityitself-muon-image.jfrog.io/photon
+    environment:
+      - MUON_URL=amqp://muon:microservices@rabbitmq
+    links:
+      - rabbitmq
+    ports:
+      - "3000:3000"
+    expose:
+      - "3000"
+    command: -jar target/photon.jar -rest.host 0.0.0.0
+    networks:
+        - default
+        - muon
+
+  gateway:
+    restart: always
+    image: simplicityitself-muon-image.jfrog.io/muonjs-gateway:latest
+    environment:
+      - MUON_URL=amqp://muon:microservices@rabbitmq
+    links:
+      - rabbitmq
+    ports:
+      - "9898:9898"
+    networks:
+        - default
+        - muon
+
+  molecule-core:
+      image: simplicityitself-muon-image.jfrog.io/molecule-core:latest
+      environment:
+        - MUON_URL=amqp://muon:microservices@rabbitmq
+      links:
+        - rabbitmq
+        - photon
+      networks:
+        - muon
+
+  molecule-ui:
+    image: simplicityitself-muon-image.jfrog.io/molecule-ui:latest
+    environment:
+      - MUON_URL=amqp://muon:microservices@rabbitmq
+      - PORT=3420
+      - MUON=true
+    links:
+      - rabbitmq
+    ports:
+      - "3420:3420"
+    expose:
+      - "3420"
+    networks:
+      - default
+      - muon
+
+
+  tools:
+    build: ./tools
+    external_links:
+      - rabbitmq
+    networks:
+      - muon
+
+
+#      ui:
+#        build: ./ui
+#        external_links:
+#          - rabbitmq
+#        ports:
+#          - "3021:3021"
+#        depends_on:
+#          - uuid
+#        networks:
+#          - muon
+
+networks:
+    muon:
+      external: true
